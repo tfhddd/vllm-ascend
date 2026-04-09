@@ -17,7 +17,6 @@
 name: E2E-Full
 
 on:
-  workflow_dispatch:
   pull_request:
     branches:
       - 'main'
