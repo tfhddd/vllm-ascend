@@ -11,30 +11,38 @@ jobs:
 
       - name: Create test files
         run: |
-          echo "Hello from vllm-ascend CI - $(date)" > test-upload.txt
-          echo "Second file - $(date)" > test-upload-2.txt
+          mkdir -p testdata/subdir
+          echo "singlecard timing - $(date)" > testdata/singlecard.json
+          echo "2card timing - $(date)"      > testdata/twocard.json
+          echo "should be excluded"          > testdata/excluded.log
+          echo "subdir file"                 > testdata/subdir/nested.json
 
       - name: Upload single file
-        id: upload
+        id: upload-single
         uses: ascend-gha-runners/artifact/upload@main
         with:
           access_key: ${{ secrets.HW_OBS_AK }}
           secret_key: ${{ secrets.HW_OBS_SK }}
-          name: test-artifact
-          path: ./test-upload.txt
+          name: timing-data-singlecard
+          path: testdata/singlecard.json
 
-      - name: Upload directory
+      - name: Upload with multiline glob and exclusion
+        id: upload-multi
         uses: ascend-gha-runners/artifact/upload@main
         with:
           access_key: ${{ secrets.HW_OBS_AK }}
           secret_key: ${{ secrets.HW_OBS_SK }}
-          name: test-artifact-dir
-          path: ./*.txt
+          name: timing-data-all
+          path: |
+            testdata/
+            !testdata/*.log
 
-      - name: Print upload result
+      - name: Print upload results
         run: |
-          echo "Artifact ID: ${{ steps.upload.outputs.artifact-id }}"
-          echo "Artifact URL: ${{ steps.upload.outputs.artifact-url }}"
+          echo "Single artifact-id:  ${{ steps.upload-single.outputs.artifact-id }}"
+          echo "Single artifact-url: ${{ steps.upload-single.outputs.artifact-url }}"
+          echo "Multi  artifact-id:  ${{ steps.upload-multi.outputs.artifact-id }}"
+          echo "Multi  artifact-url: ${{ steps.upload-multi.outputs.artifact-url }}"
 
   test-download:
     needs: test-upload
@@ -48,7 +56,7 @@ jobs:
         with:
           access_key: ${{ secrets.HW_OBS_AK }}
           secret_key: ${{ secrets.HW_OBS_SK }}
-          name: test-artifact
+          name: timing-data-singlecard
           path: ./downloaded/
 
       - name: Download by pattern
@@ -57,16 +65,31 @@ jobs:
         with:
           access_key: ${{ secrets.HW_OBS_AK }}
           secret_key: ${{ secrets.HW_OBS_SK }}
-          pattern: test-artifact*
+          pattern: timing-data-*
           path: ./downloaded-pattern/
 
       - name: Verify downloads
         run: |
-          echo "=== download by name ==="
+          echo "=== download by exact name ==="
           echo "Download path: ${{ steps.dl-name.outputs.download-path }}"
           find ./downloaded/ -type f
-          cat ./downloaded/test-artifact/test-upload.txt
+          echo "File content:"
+          cat ./downloaded/timing-data-singlecard/singlecard.json
 
+          echo ""
           echo "=== download by pattern ==="
           echo "Matched artifacts: ${{ steps.dl-pattern.outputs.matched-artifacts }}"
           find ./downloaded-pattern/ -type f
+
+          echo ""
+          echo "=== verify exclusion worked (excluded.log should NOT exist) ==="
+          if find ./downloaded-pattern/timing-data-all/ -name "*.log" | grep -q .; then
+            echo "FAIL: .log file was not excluded"
+            exit 1
+          else
+            echo "PASS: .log file correctly excluded"
+          fi
+
+          echo ""
+          echo "=== verify nested file exists ==="
+          cat ./downloaded-pattern/timing-data-all/testdata/subdir/nested.json
