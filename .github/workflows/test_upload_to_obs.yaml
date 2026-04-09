@@ -16,7 +16,7 @@ jobs:
 
       - name: Upload single file
         id: upload
-        uses: ascend-gha-runners/artifact/upload@v0.2
+        uses: ascend-gha-runners/artifact/upload@main
         with:
           access_key: ${{ secrets.HW_OBS_AK }}
           secret_key: ${{ secrets.HW_OBS_SK }}
@@ -24,7 +24,7 @@ jobs:
           path: ./test-upload.txt
 
       - name: Upload directory
-        uses: ascend-gha-runners/artifact/upload@v0.2
+        uses: ascend-gha-runners/artifact/upload@main
         with:
           access_key: ${{ secrets.HW_OBS_AK }}
           secret_key: ${{ secrets.HW_OBS_SK }}
@@ -44,7 +44,7 @@ jobs:
 
       - name: Download by exact name
         id: dl-name
-        uses: ascend-gha-runners/artifact/download@v0.2
+        uses: ascend-gha-runners/artifact/download@main
         with:
           access_key: ${{ secrets.HW_OBS_AK }}
           secret_key: ${{ secrets.HW_OBS_SK }}
@@ -53,7 +53,7 @@ jobs:
 
       - name: Download by pattern
         id: dl-pattern
-        uses: ascend-gha-runners/artifact/download@v0.2
+        uses: ascend-gha-runners/artifact/download@main
         with:
           access_key: ${{ secrets.HW_OBS_AK }}
           secret_key: ${{ secrets.HW_OBS_SK }}
