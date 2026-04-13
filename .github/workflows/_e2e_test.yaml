@@ -120,7 +120,6 @@ jobs:
           
           echo "OIDC_TOKEN=$TOKEN" >> $GITHUB_ENV
           echo "✅ 获取 OIDC Token 成功"
-          echo "OIDC_TOKEN 前 10 位: ${TOKEN:0:10}"
 
       # 2. 调用华为云 STS（带错误打印 + 自动排查）
       - name: Get Temporary AK/SK (FIXED)
