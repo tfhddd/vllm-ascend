@@ -36,7 +36,9 @@ defaults:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+permissions:
+  id-token: write  # 必须开启OIDC权限
+  contents: read
 jobs:
   lint:
     uses: ./.github/workflows/_pre_commit.yml
