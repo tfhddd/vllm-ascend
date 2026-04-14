@@ -134,7 +134,12 @@ jobs:
             GITHUB_ID_TOKEN="$GITHUB_ID_TOKEN_RAW"
           fi
           
-          echo "GitHub ID Token length: ${#GITHUB_ID_TOKEN}"
+          # 解码 JWT 查看 payload（仅作调试，不输出完整 token）
+          echo "Checking JWT payload..."
+          JWT_PAYLOAD=$(echo "$GITHUB_ID_TOKEN" | cut -d '.' -f 2)
+          # 添加 padding 并解码
+          JWT_PAYLOAD_DECODED=$(echo "$JWT_PAYLOAD" | tr '-_' '+/' | head -c 100)
+          echo "JWT payload preview: $JWT_PAYLOAD_DECODED"
           
           # 步骤 2: 使用 GitHub ID Token 调用华为云接口获取华为云 Token
           echo "Step 2: Exchanging for Huawei Cloud Token..."
