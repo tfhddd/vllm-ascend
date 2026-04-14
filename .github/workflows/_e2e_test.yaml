@@ -133,56 +133,33 @@ jobs:
           echo "$GITHUB_ID_TOKEN" | cut -d '.' -f 2 | base64 -d 2>/dev/null || echo "Cannot decode JWT payload"
           
           # 步骤 2: 使用 GitHub ID Token 调用华为云接口获取华为云 Token
-          echo "Step 2: Exchanging for Huawei Cloud Token..."
-          
-          # **关键修改1: 必须包含 Project Scope**
-          # 你需要在华为云控制台找到你的 Project ID
-          PROJECT_ID="github-vllm-ascend"  # 替换为你的真实项目ID
-          
-          jq -n --arg id_token "$GITHUB_ID_TOKEN" --arg project_id "$PROJECT_ID" '{
-            "auth": {
-              "id_token": {
-                "id": $id_token
-              },
-              "scope": {
-                "project": {
-                  "id": $project_id
-                }
-              }
-            }
-          }' > /tmp/id_token_auth.json
-          
-          # 打印请求体用于调试（注意不要泄露敏感信息）
-          echo "Request body:"
-          cat /tmp/id_token_auth.json
-          
-          # 发送请求
-          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-AUTH/id-token/tokens" \
-            -H "Content-Type: application/json" \
-            -H "X-Idp-Id: github-vllm-ascend" \
-            -d @/tmp/id_token_auth.json)
-          
-          HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
-          RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed '$d'
-          
-          echo "HTTP Status Code: $HTTP_CODE"
-          echo "Response Body: $RESPONSE_BODY"
-          
-          if [ "$HTTP_CODE" != "201" ]; then
-            echo "::error::Failed to get Huawei Cloud Token. HTTP Code: $HTTP_CODE"
-            exit 1
-          fi
-          
-          # 从响应头 X-Subject-Token 中获取华为云 Token
-          HW_TOKEN=$(echo "$RESPONSE_BODY" | jq -r '.token.id // empty')
-          
-          if [ -z "$HW_TOKEN" ]; then
-            echo "::error::Failed to extract Huawei Cloud Token from response"
-            exit 1
-          fi
-          
-          echo "Huawei Cloud Token obtained successfully"
+          #          echo "Step 2: Exchanging for Huawei Cloud Token..."
+          #          jq -n --arg id_token "$GITHUB_ID_TOKEN" '{
+          #            "auth": {
+          #              "id_token": {
+          #                "id": $id_token
+          #              }
+          #            }
+          #          }' > /tmp/id_token_auth.json
+          #          
+          #          HW_TOKEN_RESPONSE=$(curl -s -i -X POST \
+          #            "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-AUTH/id-token/tokens" \
+          #            -H "Content-Type: application/json" \
+          #            -H "X-Idp-Id: github-vllm-ascend" \
+          #            -d @/tmp/id_token_auth.json)
+          #          
+          #          # 从响应头 X-Subject-Token 中获取华为云 Token
+          #          HW_TOKEN=$(echo "$HW_TOKEN_RESPONSE" | grep -i 'X-Subject-Token:' | tr -d '\r' | awk '{print $2}')
+          #          HW_TOKEN_BODY=$(echo "$HW_TOKEN_RESPONSE" | sed -n '/^\r*$/,$p' | tail -n +2)
+          #          
+          #          if [ -z "$HW_TOKEN" ]; then
+          #            echo "::error::Failed to get Huawei Cloud Token"
+          #            echo "Response headers: $(echo "$HW_TOKEN_RESPONSE" | head -20)"
+          #            echo "Response body: $HW_TOKEN_BODY"
+          #            exit 1
+          #          fi
+          #          
+          #          echo "Huawei Cloud Token obtained successfully"
           
           # 步骤 3: 使用华为云 Token 获取临时 AK/SK
           echo "Step 3: Getting temporary AK/SK..."
@@ -192,7 +169,7 @@ jobs:
               "identity": {
                 "methods": ["token"],
                 "token": {
-                  "id": $token
+                  "id": $id_token
                 }
               }
             }
@@ -204,12 +181,12 @@ jobs:
             -d @/tmp/securitytoken_auth.json)
           
           HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
-          RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed '$d'
+          RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
           
           echo "HTTP Status Code: $HTTP_CODE"
           echo "Response Body: $RESPONSE_BODY"
           
-          if [ "$HTTP_CODE" != "200" ]; then
+          if [ "$HTTP_CODE" != "201" ]; then
             echo "::error::Failed to get temporary credentials. HTTP Code: $HTTP_CODE"
             exit 1
           fi
