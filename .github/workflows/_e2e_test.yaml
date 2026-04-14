@@ -121,7 +121,7 @@ jobs:
           
           # 获取原始响应
           GITHUB_ID_TOKEN_RAW=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=FederationUser")
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}")
           
           echo "Raw response starts with: $(echo "$GITHUB_ID_TOKEN_RAW" | head -c 100)"
           
