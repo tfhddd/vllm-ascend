@@ -127,9 +127,9 @@ jobs:
           jq -n --arg token "$OIDC_TOKEN" '{
             "auth": {
               "identity": {
-                "methods": ["openid"],
-                "openid": {
-                  "id_token": $token
+                "methods": ["token"],
+                "token": {
+                  "id": $token
                 }
               }
             }
