@@ -43,8 +43,6 @@ env:
   UV_INDEX_STRATEGY: unsafe-best-match
   UV_NO_CACHE: 1
   UV_SYSTEM_PYTHON: 1
-  AWS_ACCESS_KEY_ID: ${{ secrets.HW_OBS_AK }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.HW_OBS_SK }}
   AWS_REGION: ap-southeast-1
   RUNS_ON_S3_BUCKET_CACHE: ascend-ci-cache-hk
   RUNS_ON_S3_BUCKET_ENDPOINT: https://obs.ap-southeast-1.myhuaweicloud.com
@@ -115,15 +113,32 @@ jobs:
             -type f -not -path '*/.*' | sort | xargs sha256sum | sha256sum | awk '{print $1}')
           echo "CSRC_HASH=$CSRC_HASH" >> $GITHUB_OUTPUT
 
-      - name: test hw obs
-        uses: huaweicloud/auth-action@v1.1.0
-        with:
-          # 填写你在华为云 IAM 创建的 OIDC 身份提供商名称
-          identity-provider: "github-vllm-ascend"
-          # 填写刚才复制的 委托URN
-          region: "ap-southeast-1"
-          # 会话名称，用于审计（可选）
-          domain_name: "FederationUser"
+      - name: Huawei Cloud OIDC Authentication
+        id: huawei-oidc
+        run: |
+          # 通过 GitHub Actions 环境变量获取 OIDC token
+          OIDC_TOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=github-vllm-ascend")
+          
+          # 调用华为云 STS API 获取临时凭证
+          RESPONSE=$(curl -s -X POST \
+            "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-CREDENTIAL/securitytokens" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"auth\": {
+                \"identity\": {
+                  \"methods\": [\"openid\"],
+                  \"openid\": {
+                    \"id_token\": \"${OIDC_TOKEN}\"
+                  }
+                }
+              }
+            }")
+          
+          # 解析响应并设置环境变量
+          echo "AWS_ACCESS_KEY_ID=$(echo "$RESPONSE" | jq -r '.credential.access')" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=$(echo "$RESPONSE" | jq -r '.credential.secret')" >> $GITHUB_ENV
+          echo "AWS_SESSION_TOKEN=$(echo "$RESPONSE" | jq -r '.credential.securitytoken')" >> $GITHUB_ENV
 
       - name: Cache vllm-ascend csrc
         uses: runs-on/cache@v4
