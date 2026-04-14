@@ -116,15 +116,44 @@ jobs:
       - name: Huawei Cloud OIDC Authentication
         id: huawei-oidc
         run: |
-          # 通过 GitHub Actions 环境变量获取 OIDC token
-          echo "Requesting OIDC token..."
-          OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          # 步骤 1: 获取 GitHub OIDC ID Token
+          echo "Step 1: Requesting GitHub OIDC ID Token..."
+          GITHUB_ID_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://iam.ap-southeast-1.myhuaweicloud.com")
           
-          echo "OIDC_TOKEN length: ${#OIDC_TOKEN}"
+          echo "GitHub ID Token length: ${#GITHUB_ID_TOKEN}"
           
-          # 使用 jq 构建 JSON，自动处理特殊字符转义
-          jq -n --arg token "$OIDC_TOKEN" '{
+          # 步骤 2: 使用 GitHub ID Token 调用华为云接口获取华为云 Token
+          echo "Step 2: Exchanging for Huawei Cloud Token..."
+          jq -n --arg id_token "$GITHUB_ID_TOKEN" '{
+            "auth": {
+              "id_token": {
+                "id": $id_token
+              }
+            }
+          }' > /tmp/id_token_auth.json
+          
+          HW_TOKEN_RESPONSE=$(curl -s -i -X POST \
+            "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-AUTH/id-token/tokens" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/id_token_auth.json)
+          
+          # 从响应头 X-Subject-Token 中获取华为云 Token
+          HW_TOKEN=$(echo "$HW_TOKEN_RESPONSE" | grep -i 'X-Subject-Token:' | tr -d '\r' | awk '{print $2}')
+          HW_TOKEN_BODY=$(echo "$HW_TOKEN_RESPONSE" | sed -n '/^\r*$/,$p' | tail -n +2)
+          
+          if [ -z "$HW_TOKEN" ]; then
+            echo "::error::Failed to get Huawei Cloud Token"
+            echo "Response headers: $(echo "$HW_TOKEN_RESPONSE" | head -20)"
+            echo "Response body: $HW_TOKEN_BODY"
+            exit 1
+          fi
+          
+          echo "Huawei Cloud Token obtained successfully"
+          
+          # 步骤 3: 使用华为云 Token 获取临时 AK/SK
+          echo "Step 3: Getting temporary AK/SK..."
+          jq -n --arg token "$HW_TOKEN" '{
             "auth": {
               "identity": {
                 "methods": ["token"],
@@ -133,17 +162,12 @@ jobs:
                 }
               }
             }
-          }' > /tmp/auth.json
+          }' > /tmp/securitytoken_auth.json
           
-          echo "Request body size:"
-          wc -c /tmp/auth.json
-          
-          # 调用华为云 STS API 获取临时凭证
-          echo "Calling Huawei Cloud STS API..."
           HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-CREDENTIAL/securitytokens" \
             -H "Content-Type: application/json" \
-            -d @/tmp/auth.json)
+            -d @/tmp/securitytoken_auth.json)
           
           HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
           RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
