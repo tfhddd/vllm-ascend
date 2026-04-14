@@ -136,6 +136,7 @@ jobs:
           HW_TOKEN_RESPONSE=$(curl -s -i -X POST \
             "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-AUTH/id-token/tokens" \
             -H "Content-Type: application/json" \
+            -H "X-Idp-Id: github-vllm-ascend" \
             -d @/tmp/id_token_auth.json)
           
           # 从响应头 X-Subject-Token 中获取华为云 Token
