@@ -123,22 +123,20 @@ jobs:
           
           echo "OIDC_TOKEN length: ${#OIDC_TOKEN}"
           
-          # 构建请求体（使用 heredoc 避免转义问题）
-          cat > /tmp/auth.json << EOF
-          {
+          # 使用 jq 构建 JSON，自动处理特殊字符转义
+          jq -n --arg token "$OIDC_TOKEN" '{
             "auth": {
               "identity": {
                 "methods": ["openid"],
                 "openid": {
-                  "id_token": "${OIDC_TOKEN}"
+                  "id_token": $token
                 }
               }
             }
-          }
-          EOF
+          }' > /tmp/auth.json
           
-          echo "Request body:"
-          cat /tmp/auth.json | jq .
+          echo "Request body size:"
+          wc -c /tmp/auth.json
           
           # 调用华为云 STS API 获取临时凭证
           echo "Calling Huawei Cloud STS API..."
