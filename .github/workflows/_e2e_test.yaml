@@ -113,98 +113,179 @@ jobs:
             -type f -not -path '*/.*' | sort | xargs sha256sum | sha256sum | awk '{print $1}')
           echo "CSRC_HASH=$CSRC_HASH" >> $GITHUB_OUTPUT
 
-      - name: Huawei Cloud OIDC Authentication
-        id: huawei-oidc
+      - name: 获取 GitHub OIDC Token
+        id: get-oidc
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // audience 需与华为云身份提供商(IdP)中配置的客户端ID一致
+            return await core.getIDToken('api://huaweicloud');
+          result-encoding: string
+
+      - name: 换取临时 AK/SK
+        id: fetch-obs-credentials
         run: |
-          # 步骤 1: 获取 GitHub OIDC ID Token
-          echo "Step 1: Requesting GitHub OIDC ID Token..."
+          GITHUB_OIDC_TOKEN="${{ steps.get-oidc.outputs.result }}"
           
-          # 获取原始响应并解析
-          GITHUB_ID_TOKEN_RAW=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}")
-          
-          echo "Raw response starts with: $(echo "$GITHUB_ID_TOKEN_RAW" | head -c 100)"
-          
-          # 提取 JWT
-          GITHUB_ID_TOKEN=$(echo "$GITHUB_ID_TOKEN_RAW" | jq -r '.value')
-          
-          # 调试：查看 JWT 的 aud 字段
-          echo "JWT aud field:"
-          echo "$GITHUB_ID_TOKEN" | cut -d '.' -f 2 | base64 -d 2>/dev/null || echo "Cannot decode JWT payload"
-          
-          # 步骤 2: 使用 GitHub ID Token 调用华为云接口获取华为云 Token
-          #          echo "Step 2: Exchanging for Huawei Cloud Token..."
-          #          jq -n --arg id_token "$GITHUB_ID_TOKEN" '{
-          #            "auth": {
-          #              "id_token": {
-          #                "id": $id_token
-          #              }
-          #            }
-          #          }' > /tmp/id_token_auth.json
-          #          
-          #          HW_TOKEN_RESPONSE=$(curl -s -i -X POST \
-          #            "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-AUTH/id-token/tokens" \
-          #            -H "Content-Type: application/json" \
-          #            -H "X-Idp-Id: github-vllm-ascend" \
-          #            -d @/tmp/id_token_auth.json)
-          #          
-          #          # 从响应头 X-Subject-Token 中获取华为云 Token
-          #          HW_TOKEN=$(echo "$HW_TOKEN_RESPONSE" | grep -i 'X-Subject-Token:' | tr -d '\r' | awk '{print $2}')
-          #          HW_TOKEN_BODY=$(echo "$HW_TOKEN_RESPONSE" | sed -n '/^\r*$/,$p' | tail -n +2)
-          #          
-          #          if [ -z "$HW_TOKEN" ]; then
-          #            echo "::error::Failed to get Huawei Cloud Token"
-          #            echo "Response headers: $(echo "$HW_TOKEN_RESPONSE" | head -20)"
-          #            echo "Response body: $HW_TOKEN_BODY"
-          #            exit 1
-          #          fi
-          #          
-          #          echo "Huawei Cloud Token obtained successfully"
-          
-          # 步骤 3: 使用华为云 Token 获取临时 AK/SK
-          echo "Step 3: Getting temporary AK/SK..."
-          
-          jq -n --arg token "$GITHUB_ID_TOKEN" '{
-            "auth": {
-              "identity": {
-                "methods": ["token"],
-                "token": {
-                  "id": $token
+          # -------------------------------------------------------------
+          # 1. 使用 GitHub OIDC Token 换取华为云 IAM Token
+          # 接口：POST /v3.0/OS-AUTH/id-token/tokens
+          # -------------------------------------------------------------
+          # 注意：scope 部分可以根据需求指定为 domain 或 project
+          IAM_AUTH_RES=$(curl -s -i -X POST "https://iam.myhuaweicloud.com/v3.0/OS-AUTH/id-token/tokens" \
+            -H "Content-Type: application/json;charset=utf8" \
+            -d '{
+              "auth": {
+                "id_token": {
+                  "id": "'"$GITHUB_OIDC_TOKEN"'"
+                },
+                "scope": {
+                  "domain": {
+                    "name": "FederationUser"
+                  }
                 }
               }
-            }
-          }' > /tmp/securitytoken_auth.json
+            }')
           
-          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-CREDENTIAL/securitytokens" \
+          # 从 Response Header 中提取 X-Subject-Token
+          IAM_TOKEN=$(echo "$IAM_AUTH_RES" | grep -i '^x-subject-token:' | awk '{print $2}' | tr -d '\r')
+
+          if [ -z "$IAM_TOKEN" ]; then
+            echo "错误：未能获取到 IAM Token，请检查身份提供商及转换规则配置。"
+            exit 1
+          fi
+
+          # -------------------------------------------------------------
+          # 2. 调用您提供的接口获取临时 AK/SK 和 SecurityToken
+          # 接口：POST /v3.0/OS-CREDENTIAL/securitytokens
+          # -------------------------------------------------------------
+          AK_SK_RES=$(curl -s -X POST "https://iam.myhuaweicloud.com/v3.0/OS-CREDENTIAL/securitytokens" \
             -H "Content-Type: application/json" \
-            -d @/tmp/securitytoken_auth.json)
+            -d '{
+              "auth": {
+                "identity": {
+                  "methods": ["token"],
+                  "token": {
+                    "id": "'"$IAM_TOKEN"'",
+                    "duration_seconds": 900
+                  }
+                }
+              }
+            }')
           
-          HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
-          RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+          # 解析凭证
+          AK=$(echo "$AK_SK_RES" | jq -r '.credential.access')
+          SK=$(echo "$AK_SK_RES" | jq -r '.credential.secret')
+          ST=$(echo "$AK_SK_RES" | jq -r '.credential.securitytoken')
           
-          echo "HTTP Status Code: $HTTP_CODE"
-          echo "Response Body: $RESPONSE_BODY"
+          # 安全掩码：防止在 CI 日志中打印明文
+          echo "::add-mask::$AK"
+          echo "::add-mask::$SK"
+          echo "::add-mask::$ST"
           
-          if [ "$HTTP_CODE" != "201" ]; then
-            echo "::error::Failed to get temporary credentials. HTTP Code: $HTTP_CODE"
-            exit 1
-          fi
+          # -------------------------------------------------------------
+          # 3. 注入环境变量
+          # -------------------------------------------------------------
+          # 兼容标准 S3 协议工具
+          echo "AWS_ACCESS_KEY_ID=$AK" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=$SK" >> $GITHUB_ENV
+          echo "AWS_SESSION_TOKEN=$ST" >> $GITHUB_ENV
           
-          # 解析响应并设置环境变量
-          ACCESS_KEY=$(echo "$RESPONSE_BODY" | jq -r '.credential.access // empty')
-          SECRET_KEY=$(echo "$RESPONSE_BODY" | jq -r '.credential.secret // empty')
-          SECURITY_TOKEN=$(echo "$RESPONSE_BODY" | jq -r '.credential.securitytoken // empty')
-          
-          if [ -z "$ACCESS_KEY" ]; then
-            echo "::error::Failed to parse temporary credentials from response"
-            exit 1
-          fi
-          
-          echo "AWS_ACCESS_KEY_ID=$ACCESS_KEY" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=$SECRET_KEY" >> $GITHUB_ENV
-          echo "AWS_SESSION_TOKEN=$SECURITY_TOKEN" >> $GITHUB_ENV
-          echo "Successfully obtained temporary credentials (AK: ${ACCESS_KEY:0:10}...)"
+          # 华为云原生 SDK 常用的环境变量名
+          echo "CLOUD_SDK_AK=$AK" >> $GITHUB_ENV
+          echo "CLOUD_SDK_SK=$SK" >> $GITHUB_ENV
+#      - name: Huawei Cloud OIDC Authentication
+#        id: huawei-oidc
+#        run: |
+#          # 步骤 1: 获取 GitHub OIDC ID Token
+#          echo "Step 1: Requesting GitHub OIDC ID Token..."
+#
+#          # 获取原始响应并解析
+#          GITHUB_ID_TOKEN_RAW=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+#            "${ACTIONS_ID_TOKEN_REQUEST_URL}")
+#
+#          echo "Raw response starts with: $(echo "$GITHUB_ID_TOKEN_RAW" | head -c 100)"
+#
+#          # 提取 JWT
+#          GITHUB_ID_TOKEN=$(echo "$GITHUB_ID_TOKEN_RAW" | jq -r '.value')
+#
+#          # 调试：查看 JWT 的 aud 字段
+#          echo "JWT aud field:"
+#          echo "$GITHUB_ID_TOKEN" | cut -d '.' -f 2 | base64 -d 2>/dev/null || echo "Cannot decode JWT payload"
+#
+#          # 步骤 2: 使用 GitHub ID Token 调用华为云接口获取华为云 Token
+#          echo "Step 2: Exchanging for Huawei Cloud Token..."
+#          jq -n --arg id_token "$GITHUB_ID_TOKEN" '{
+#            "auth": {
+#              "id_token": {
+#                "id": $id_token
+#              }
+#            }
+#          }' > /tmp/id_token_auth.json
+#
+#          HW_TOKEN_RESPONSE=$(curl -s -i -X POST \
+#            "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-AUTH/id-token/tokens" \
+#            -H "Content-Type: application/json" \
+#            -H "X-Idp-Id: github-vllm-ascend" \
+#            -d @/tmp/id_token_auth.json)
+#
+#          # 从响应头 X-Subject-Token 中获取华为云 Token
+#          HW_TOKEN=$(echo "$HW_TOKEN_RESPONSE" | grep -i 'X-Subject-Token:' | tr -d '\r' | awk '{print $2}')
+#          HW_TOKEN_BODY=$(echo "$HW_TOKEN_RESPONSE" | sed -n '/^\r*$/,$p' | tail -n +2)
+#
+#          if [ -z "$HW_TOKEN" ]; then
+#            echo "::error::Failed to get Huawei Cloud Token"
+#            echo "Response headers: $(echo "$HW_TOKEN_RESPONSE" | head -20)"
+#            echo "Response body: $HW_TOKEN_BODY"
+#            exit 1
+#          fi
+#
+#          echo "Huawei Cloud Token obtained successfully"
+#
+#          # 步骤 3: 使用华为云 Token 获取临时 AK/SK
+#          echo "Step 3: Getting temporary AK/SK..."
+#
+#          jq -n --arg token "$HW_TOKEN" '{
+#            "auth": {
+#              "identity": {
+#                "methods": ["token"],
+#                "token": {
+#                  "id": $token
+#                }
+#              }
+#            }
+#          }' > /tmp/securitytoken_auth.json
+#
+#          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+#            "https://iam.ap-southeast-1.myhuaweicloud.com/v3.0/OS-CREDENTIAL/securitytokens" \
+#            -H "Content-Type: application/json" \
+#            -d @/tmp/securitytoken_auth.json)
+#
+#          HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
+#          RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+#
+#          echo "HTTP Status Code: $HTTP_CODE"
+#          echo "Response Body: $RESPONSE_BODY"
+#
+#          if [ "$HTTP_CODE" != "201" ]; then
+#            echo "::error::Failed to get temporary credentials. HTTP Code: $HTTP_CODE"
+#            exit 1
+#          fi
+#
+#          # 解析响应并设置环境变量
+#          ACCESS_KEY=$(echo "$RESPONSE_BODY" | jq -r '.credential.access // empty')
+#          SECRET_KEY=$(echo "$RESPONSE_BODY" | jq -r '.credential.secret // empty')
+#          SECURITY_TOKEN=$(echo "$RESPONSE_BODY" | jq -r '.credential.securitytoken // empty')
+#
+#          if [ -z "$ACCESS_KEY" ]; then
+#            echo "::error::Failed to parse temporary credentials from response"
+#            exit 1
+#          fi
+#
+#          echo "AWS_ACCESS_KEY_ID=$ACCESS_KEY" >> $GITHUB_ENV
+#          echo "AWS_SECRET_ACCESS_KEY=$SECRET_KEY" >> $GITHUB_ENV
+#          echo "AWS_SESSION_TOKEN=$SECURITY_TOKEN" >> $GITHUB_ENV
+#          echo "Successfully obtained temporary credentials (AK: ${ACCESS_KEY:0:10}...)"
       - name: Cache vllm-ascend csrc
         uses: runs-on/cache@v4
         with:
