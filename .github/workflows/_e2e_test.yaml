@@ -118,13 +118,12 @@ jobs:
         run: |
           # 步骤 1: 获取 GitHub OIDC ID Token
           echo "Step 1: Requesting GitHub OIDC ID Token..."
-          echo "Request URL: ${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=FederationUser"
           
           # 获取原始响应
           GITHUB_ID_TOKEN_RAW=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=FederationUser")
           
-          echo "Raw response (first 100 chars): ${GITHUB_ID_TOKEN_RAW:0:100}"
+          echo "Raw response starts with: $(echo "$GITHUB_ID_TOKEN_RAW" | head -c 100)"
           
           # 判断是否为 JSON 格式
           if echo "$GITHUB_ID_TOKEN_RAW" | jq -e . > /dev/null 2>&1; then
@@ -136,7 +135,6 @@ jobs:
           fi
           
           echo "GitHub ID Token length: ${#GITHUB_ID_TOKEN}"
-          echo "GitHub ID Token (first 50 chars): ${GITHUB_ID_TOKEN:0:50}"
           
           # 步骤 2: 使用 GitHub ID Token 调用华为云接口获取华为云 Token
           echo "Step 2: Exchanging for Huawei Cloud Token..."
