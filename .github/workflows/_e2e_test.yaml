@@ -139,6 +139,11 @@ jobs:
               "auth": {
                 "id_token": {
                   "id": "'"$GITHUB_OIDC_TOKEN"'"
+                },
+                "scope": {
+                  "domain": {
+                    "name": "FederationUser"
+                  }
                 }
               }
             }')
