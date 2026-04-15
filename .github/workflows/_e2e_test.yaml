@@ -126,7 +126,7 @@ jobs:
         id: fetch-obs-credentials
         run: |
           GITHUB_OIDC_TOKEN="${{ steps.get-oidc.outputs.result }}"
-          
+          GITHUB_OIDC_USER="vllm-ascend"
           # -------------------------------------------------------------
           # 1. 使用 GitHub OIDC Token 换取华为云 IAM Token
           # 接口：POST /v3.0/OS-AUTH/id-token/tokens
@@ -142,7 +142,7 @@ jobs:
                 },
                 "scope": {
                   "domain": {
-                    "name": "vllm-ascend"
+                    "id": "'"$GITHUB_OIDC_USER"'"
                   }
                 }
               }
