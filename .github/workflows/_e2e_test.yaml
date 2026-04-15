@@ -142,7 +142,7 @@ jobs:
                 },
                 "scope": {
                   "domain": {
-                    "name": "FederationUser"
+                    "name": "vllm-ascend"
                   }
                 }
               }
