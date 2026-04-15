@@ -142,6 +142,7 @@ jobs:
                 },
                 "scope": {
                   "domain": {
+                    "id" : "",
                     "name": "'"$GITHUB_OIDC_USER"'"
                   }
                 }
