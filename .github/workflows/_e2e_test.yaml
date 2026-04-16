@@ -97,13 +97,13 @@ jobs:
           VLLM_TARGET_DEVICE=empty uv pip install -e .
           uv pip uninstall triton
 
-#      - name: Get csrc hash
-#        id: get_csrc_hash
-#        run: |
-#          CSRC_HASH=$(find ./csrc ./setup.py ./pyproject.toml ./CMakeLists.txt ./cmake \
-#            ./vllm_ascend/envs.py ./requirements.txt ./packages.txt \
-#            -type f -not -path '*/.*' | sort | xargs sha256sum | sha256sum | awk '{print $1}')
-#          echo "CSRC_HASH=$CSRC_HASH" >> $GITHUB_OUTPUT
+      - name: Get csrc hash
+        id: get_csrc_hash
+        run: |
+          CSRC_HASH=$(find ./csrc ./setup.py ./pyproject.toml ./CMakeLists.txt ./cmake \
+            ./vllm_ascend/envs.py ./requirements.txt ./packages.txt \
+            -type f -not -path '*/.*' | sort | xargs sha256sum | sha256sum | awk '{print $1}')
+          echo "CSRC_HASH=$CSRC_HASH" >> $GITHUB_OUTPUT
 
       - name: Cache vllm-ascend csrc
         uses: actions/cache@v4
