@@ -42,7 +42,7 @@ env:
 jobs:
   e2e-light:
     name: singlecard-light
-    if: ${{ inputs.type == 'light' }}
+    if: ${{ inputs.type == 'light1' }}
     runs-on: linux-aarch64-a2b3-test-1
     permissions:
       id-token: write  # 必须开启OIDC权限
@@ -172,7 +172,7 @@ jobs:
 
   e2e-full:
     name: singlecard-full
-    if: ${{ inputs.type == 'full' }}
+    if: ${{ inputs.type == 'full1' }}
     runs-on: linux-aarch64-a2b3-test-1
     strategy:
       fail-fast: false
@@ -300,7 +300,7 @@ jobs:
   e2e-2-cards-light:
     name: multicard-2-light
     if: ${{ inputs.type == 'light' }}
-    runs-on: linux-aarch64-a3-test-2
+    runs-on: linux-aarch64-a3-2-for-hidevlab-k8s
     strategy:
       fail-fast: false
       matrix:
@@ -426,7 +426,7 @@ jobs:
   e2e-2-cards-full:
     name: multicard-2-full
     if: ${{ inputs.type == 'full' }}
-    runs-on: linux-aarch64-a3-test-2
+    runs-on: linux-aarch64-a3-2-for-hidevlab-k8s
     strategy:
       fail-fast: false
       matrix:
@@ -572,7 +572,7 @@ jobs:
   e2e-4-cards-full:
     name: multicard-4-full
     if: ${{ inputs.type == 'full' }}
-    runs-on: linux-aarch64-a3-test-4
+    runs-on: linux-aarch64-a3-4-for-hidevlab-k8s
     strategy:
       fail-fast: false
       matrix:
