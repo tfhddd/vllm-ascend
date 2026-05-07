@@ -506,66 +506,66 @@ jobs:
           else
             uv pip install -v -e .
           fi
-#      - name: Run vllm-project/vllm-ascend test (full)
-#        env:
-#          VLLM_WORKER_MULTIPROC_METHOD: spawn
-#        shell: bash
-#        run: |
-#          set -o pipefail
-#          if [ "${{ inputs.continue_on_error }}" = "true" ]; then
-#            python3 .github/workflows/scripts/run_suite.py \
-#              --suite e2e-multicard-2-cards \
-#              --auto-partition-id "${{ matrix.part }}" \
-#              --auto-partition-size 1 \
-#              --auto-upgrade-estimated-times \
-#              --continue-on-error \
-#              2>&1 | tee /tmp/e2e-2card-full-part${{ matrix.part }}.log
-#          else
-#            python3 .github/workflows/scripts/run_suite.py \
-#              --suite e2e-multicard-2-cards \
-#              --auto-partition-id "${{ matrix.part }}" \
-#              --auto-partition-size 1 \
-#              2>&1 | tee /tmp/e2e-2card-full-part${{ matrix.part }}.log
-#          fi
-#          exit ${PIPESTATUS[0]}
-#
-#      - name: Summarize multicard-2-full failure
-#        if: ${{ always() }}
-#        run: |
-#          python3 .github/workflows/scripts/ci_log_summary.py \
-#            --step-name "Run multicard-2-full test " \
-#            --log-file /tmp/e2e-2card-full-part${{ matrix.part }}.log \
-#            --output "$GITHUB_STEP_SUMMARY"
-#
-#
-#      - name: Upload timing data
-#        uses: actions/upload-artifact@v4
-#        if: ${{ inputs.continue_on_error == true && github.event_name != 'pull_request' }}
-#        with:
-#          name: timing-data-2card-full-part${{ matrix.part }}
-#          path: test_timing_data.json
-#          if-no-files-found: warn
-#          retention-days: 5
-#
-#      - name: Run vllm-project/vllm-ascend test (non triton)
-#        if: ${{ inputs.type == 'full' && matrix.part == 0 }}
-#        env:
-#          VLLM_WORKER_MULTIPROC_METHOD: spawn
-#        shell: bash
-#        run: |
-#          set -o pipefail
-#          python3 -m pip uninstall -y triton-ascend
-#          pytest -sv --durations=0 tests/e2e/multicard/2-cards/test_aclgraph_capture_replay.py \
-#            2>&1 | tee /tmp/e2e-non-triton.log
-#          exit ${PIPESTATUS[0]}
-#
-#      - name: Summarize non-triton failure
-#        if: ${{ always() && inputs.type == 'full' && matrix.part == 0 }}
-#        run: |
-#          python3 .github/workflows/scripts/ci_log_summary.py \
-#            --step-name "Run multicard-2-full test (non triton)" \
-#            --log-file /tmp/e2e-non-triton.log \
-#            --output "$GITHUB_STEP_SUMMARY"
+      - name: Run vllm-project/vllm-ascend test (full)
+        env:
+          VLLM_WORKER_MULTIPROC_METHOD: spawn
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ "${{ inputs.continue_on_error }}" = "true" ]; then
+            python3 .github/workflows/scripts/run_suite.py \
+              --suite e2e-multicard-2-cards \
+              --auto-partition-id "${{ matrix.part }}" \
+              --auto-partition-size 1 \
+              --auto-upgrade-estimated-times \
+              --continue-on-error \
+              2>&1 | tee /tmp/e2e-2card-full-part${{ matrix.part }}.log
+          else
+            python3 .github/workflows/scripts/run_suite.py \
+              --suite e2e-multicard-2-cards \
+              --auto-partition-id "${{ matrix.part }}" \
+              --auto-partition-size 1 \
+              2>&1 | tee /tmp/e2e-2card-full-part${{ matrix.part }}.log
+          fi
+          exit ${PIPESTATUS[0]}
+
+      - name: Summarize multicard-2-full failure
+        if: ${{ always() }}
+        run: |
+          python3 .github/workflows/scripts/ci_log_summary.py \
+            --step-name "Run multicard-2-full test " \
+            --log-file /tmp/e2e-2card-full-part${{ matrix.part }}.log \
+            --output "$GITHUB_STEP_SUMMARY"
+
+
+      - name: Upload timing data
+        uses: actions/upload-artifact@v4
+        if: ${{ inputs.continue_on_error == true && github.event_name != 'pull_request' }}
+        with:
+          name: timing-data-2card-full-part${{ matrix.part }}
+          path: test_timing_data.json
+          if-no-files-found: warn
+          retention-days: 5
+
+      - name: Run vllm-project/vllm-ascend test (non triton)
+        if: ${{ inputs.type == 'full' && matrix.part == 0 }}
+        env:
+          VLLM_WORKER_MULTIPROC_METHOD: spawn
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 -m pip uninstall -y triton-ascend
+          pytest -sv --durations=0 tests/e2e/multicard/2-cards/test_aclgraph_capture_replay.py \
+            2>&1 | tee /tmp/e2e-non-triton.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Summarize non-triton failure
+        if: ${{ always() && inputs.type == 'full' && matrix.part == 0 }}
+        run: |
+          python3 .github/workflows/scripts/ci_log_summary.py \
+            --step-name "Run multicard-2-full test (non triton)" \
+            --log-file /tmp/e2e-non-triton.log \
+            --output "$GITHUB_STEP_SUMMARY"
 
   e2e-4-cards-full:
     name: multicard-4-full
@@ -650,47 +650,47 @@ jobs:
           else
             uv pip install -v -e .
           fi
-#
-#      - name: Run vllm-project/vllm-ascend test for V1 Engine
-#        env:
-#          VLLM_WORKER_MULTIPROC_METHOD: spawn
-#        shell: bash
-#        run: |
-#          set -o pipefail
-#          if [ "${{ inputs.continue_on_error }}" = "true" ]; then
-#            python3 .github/workflows/scripts/run_suite.py \
-#              --suite e2e-multicard-4-cards \
-#              --auto-partition-id "${{ matrix.part }}" \
-#              --auto-partition-size 1 \
-#              --auto-upgrade-estimated-times \
-#              --continue-on-error \
-#              2>&1 | tee /tmp/e2e-4card-full-part${{ matrix.part }}.log
-#          else
-#            python3 .github/workflows/scripts/run_suite.py \
-#              --suite e2e-multicard-4-cards \
-#              --auto-partition-id "${{ matrix.part }}" \
-#              --auto-partition-size 1 \
-#              2>&1 | tee /tmp/e2e-4card-full-part${{ matrix.part }}.log
-#          fi
-#          exit ${PIPESTATUS[0]}
-#
-#      - name: Summarize multicard-4-full failure
-#        if: ${{ always() }}
-#        run: |
-#          python3 .github/workflows/scripts/ci_log_summary.py \
-#            --step-name "Run vllm-project/vllm-ascend test for V1 Engine" \
-#            --log-file /tmp/e2e-4card-full-part${{ matrix.part }}.log \
-#            --output "$GITHUB_STEP_SUMMARY"
-#
-#
-#      - name: Upload timing data
-#        uses: actions/upload-artifact@v4
-#        if: ${{ inputs.continue_on_error == true && github.event_name != 'pull_request' }}
-#        with:
-#          name: timing-data-4card-full-part${{ matrix.part }}
-#          path: test_timing_data.json
-#          if-no-files-found: warn
-#          retention-days: 5
+
+      - name: Run vllm-project/vllm-ascend test for V1 Engine
+        env:
+          VLLM_WORKER_MULTIPROC_METHOD: spawn
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ "${{ inputs.continue_on_error }}" = "true" ]; then
+            python3 .github/workflows/scripts/run_suite.py \
+              --suite e2e-multicard-4-cards \
+              --auto-partition-id "${{ matrix.part }}" \
+              --auto-partition-size 1 \
+              --auto-upgrade-estimated-times \
+              --continue-on-error \
+              2>&1 | tee /tmp/e2e-4card-full-part${{ matrix.part }}.log
+          else
+            python3 .github/workflows/scripts/run_suite.py \
+              --suite e2e-multicard-4-cards \
+              --auto-partition-id "${{ matrix.part }}" \
+              --auto-partition-size 1 \
+              2>&1 | tee /tmp/e2e-4card-full-part${{ matrix.part }}.log
+          fi
+          exit ${PIPESTATUS[0]}
+
+      - name: Summarize multicard-4-full failure
+        if: ${{ always() }}
+        run: |
+          python3 .github/workflows/scripts/ci_log_summary.py \
+            --step-name "Run vllm-project/vllm-ascend test for V1 Engine" \
+            --log-file /tmp/e2e-4card-full-part${{ matrix.part }}.log \
+            --output "$GITHUB_STEP_SUMMARY"
+
+
+      - name: Upload timing data
+        uses: actions/upload-artifact@v4
+        if: ${{ inputs.continue_on_error == true && github.event_name != 'pull_request' }}
+        with:
+          name: timing-data-4card-full-part${{ matrix.part }}
+          path: test_timing_data.json
+          if-no-files-found: warn
+          retention-days: 5
 
   e2e_310p:
     name: 310p singlecard
