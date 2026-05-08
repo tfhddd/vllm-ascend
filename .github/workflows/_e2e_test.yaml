@@ -366,9 +366,9 @@ jobs:
             vllm_ascend/*.so
             vllm_ascend/lib
             vllm_ascend/include
-          key: vllm-ascend-build-test-v1-${{ runner.os }}-${{ inputs.image_a3_2 }}-${{ steps.get_csrc_hash.outputs.CSRC_HASH }}
+          key: vllm-ascend-build-v1-${{ runner.os }}-${{ inputs.image_a3_2 }}-${{ steps.get_csrc_hash.outputs.CSRC_HASH }}
           restore-keys: |
-            vllm-ascend-build-test-v1-${{ runner.os }}-${{ inputs.image_a3_2 }}-${{ steps.get_csrc_hash.outputs.CSRC_HASH }}
+            vllm-ascend-build-v1-${{ runner.os }}-${{ inputs.image_a3_2 }}-${{ steps.get_csrc_hash.outputs.CSRC_HASH }}
 
       - name: Install vllm-project/vllm-ascend
         env:
